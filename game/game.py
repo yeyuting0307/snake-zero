@@ -8,7 +8,7 @@ from utils import showText, gameStart, gameRule, gameOver
 
 class Game:
     def __init__(self, playSurface):
-        self.playSurface = playSurface
+        self.ps = playSurface
         self.fpsClock = pygame.time.Clock()
         self.reset()
 
@@ -55,12 +55,12 @@ class Game:
     def run(self):
         holdStart = True
         while holdStart:
-            holdStart = gameStart(self.playSurface)
+            holdStart = gameStart(self.ps)
         
-        self.playSurface.fill(BLACK)
+        self.ps.fill(BLACK)
         ruleStart = True
         while ruleStart:
-            ruleStart = gameRule(self.playSurface)
+            ruleStart = gameRule(self.ps)
         
         restart = True
         while restart:
@@ -81,7 +81,7 @@ class Game:
                 passTime = (pygame.time.get_ticks() - self.gameStartTime) / 1000 - self.pauseTotalTime
                 if self.gameRestrictTime - passTime <= 0:
                     self.running = False
-                    gameOver(self.playSurface, self.score1, self.score2)
+                    gameOver(self.ps, self.score1, self.score2)
                     
                 self.fpsClock.tick(self.gameSpeed)
     
@@ -176,7 +176,7 @@ class Game:
         self.check_collisions()
         
     def render_game(self):
-        self.playSurface.fill(BLACK)
+        self.ps.fill(BLACK)
         
         if self.candySpawned == 0:
             new_x = random.sample(WIDTH_GRID, self.candyNum)
@@ -185,15 +185,15 @@ class Game:
             self.candySpawned = self.candyNum
         
         for cp in self.candyPosition:
-            pygame.draw.rect(self.playSurface, RED, Rect(cp[0], cp[1], 20, 20))
+            pygame.draw.rect(self.ps, RED, Rect(cp[0], cp[1], 20, 20))
         
         for position in self.snakeSegments1[1:]:
-            pygame.draw.rect(self.playSurface, self.snakeColor1, Rect(position[0], position[1], 20, 20))
-        pygame.draw.rect(self.playSurface, GREY, Rect(self.snakePosition1[0], self.snakePosition1[1], 20, 20))
+            pygame.draw.rect(self.ps, self.snakeColor1, Rect(position[0], position[1], 20, 20))
+        pygame.draw.rect(self.ps, GREY, Rect(self.snakePosition1[0], self.snakePosition1[1], 20, 20))
         
         for position in self.snakeSegments2[1:]:
-            pygame.draw.rect(self.playSurface, self.snakeColor2, Rect(position[0], position[1], 20, 20))
-        pygame.draw.rect(self.playSurface, GREY, Rect(self.snakePosition2[0], self.snakePosition2[1], 20, 20))
+            pygame.draw.rect(self.ps, self.snakeColor2, Rect(position[0], position[1], 20, 20))
+        pygame.draw.rect(self.ps, GREY, Rect(self.snakePosition2[0], self.snakePosition2[1], 20, 20))
         
         passTime = (pygame.time.get_ticks() - self.gameStartTime) / 1000 - self.pauseTotalTime
         if round(self.gameRestrictTime - passTime) <= 10:
@@ -204,34 +204,34 @@ class Game:
         timeSurf = timeFont.render(str(round(self.gameRestrictTime - passTime)) + 's', True, self.timeColor)
         timeRect = timeSurf.get_rect()
         timeRect.midtop = (WIDTH / 2, 0)
-        self.playSurface.blit(timeSurf, timeRect)
-        showText(self.playSurface, "1P  " + str(self.score1).zfill(3), FontSize=24, FontColor=self.scoreColor1, midtop=(160, 0))
-        showText(self.playSurface, "2P  " + str(self.score2).zfill(3), FontSize=24, FontColor=self.scoreColor2, midtop=(480, 0))
-        showText(self.playSurface, "Speed : " + str(self.gameSpeed), FontSize=20, FontColor=self.scoreColor1, midtop=(340, 440))
-        showText(self.playSurface, "× " * self.foul1, FontSize=24, FontColor=RED, midtop=(40, 0))
-        showText(self.playSurface, "× " * self.foul2, FontSize=24, FontColor=RED, midtop=(600, 0))
+        self.ps.blit(timeSurf, timeRect)
+        showText(self.ps, "1P  " + str(self.score1).zfill(3), 24, self.scoreColor1, (160, 0))
+        showText(self.ps, "2P  " + str(self.score2).zfill(3), 24, self.scoreColor2, (480, 0))
+        showText(self.ps, "Speed : " + str(self.gameSpeed), 20, self.scoreColor1, (340, 440))
+        showText(self.ps, "× " * self.foul1, 24, RED, (40, 0))
+        showText(self.ps, "× " * self.foul2, 24, RED, (600, 0))
         
         pygame.display.flip()
 
     def check_collisions(self):
         if self.snakePosition1[0] >= WIDTH:
             if self.border:
-                self.running = gameOver(self.playSurface, self.score1, self.score2)
+                self.running = gameOver(self.ps, self.score1, self.score2)
             else:
                 self.snakePosition1[0] = 0
         if self.snakePosition1[0] < 0:
             if self.border:
-                self.running = gameOver(self.playSurface, self.score1, self.score2)
+                self.running = gameOver(self.ps, self.score1, self.score2)
             else:
                 self.snakePosition1[0] = WIDTH - 20
         if self.snakePosition1[1] >= HEIGHT:
             if self.border:
-                self.running = gameOver(self.playSurface, self.score1, self.score2)
+                self.running = gameOver(self.ps, self.score1, self.score2)
             else:
                 self.snakePosition1[1] = 0
         if self.snakePosition1[1] < 0:
             if self.border:
-                self.running = gameOver(self.playSurface, self.score1, self.score2)
+                self.running = gameOver(self.ps, self.score1, self.score2)
             else:
                 self.snakePosition1[1] = HEIGHT - 20
         
@@ -239,28 +239,28 @@ class Game:
             if self.snakePosition1 == snakeBody:
                 self.foul1 += 1
                 if self.foul1 >= 3:
-                    self.running = gameOver(self.playSurface, self.score1, self.score2, self.foul1, self.foul2)
+                    self.running = gameOver(self.ps, self.score1, self.score2, self.foul1, self.foul2)
                 self.snakeColor1 = pygame.Color(max(0, 255 - self.foul1 * 40), max(0, 255 - self.foul1 * 40), 0)
                 break
         
         if self.snakePosition2[0] >= WIDTH:
             if self.border:
-                self.running = gameOver(self.playSurface, self.score1, self.score2)
+                self.running = gameOver(self.ps, self.score1, self.score2)
             else:
                 self.snakePosition2[0] = 0
         if self.snakePosition2[0] < 0:
             if self.border:
-                self.running = gameOver(self.playSurface, self.score1, self.score2)
+                self.running = gameOver(self.ps, self.score1, self.score2)
             else:
                 self.snakePosition2[0] = WIDTH - 20
         if self.snakePosition2[1] >= HEIGHT:
             if self.border:
-                self.running = gameOver(self.playSurface, self.score1, self.score2)
+                self.running = gameOver(self.ps, self.score1, self.score2)
             else:
                 self.snakePosition2[1] = 0
         if self.snakePosition2[1] < 0:
             if self.border:
-                self.running = gameOver(self.playSurface, self.score1, self.score2)
+                self.running = gameOver(self.ps, self.score1, self.score2)
             else:
                 self.snakePosition2[1] = HEIGHT - 20
         
@@ -268,7 +268,7 @@ class Game:
             if self.snakePosition2 == snakeBody:
                 self.foul2 += 1
                 if self.foul2 >= 3:
-                    self.running = gameOver(self.playSurface, self.score1, self.score2, self.foul1, self.foul2)
+                    self.running = gameOver(self.ps, self.score1, self.score2, self.foul1, self.foul2)
                 self.snakeColor2 = pygame.Color(max(0, 135 - self.foul2 * 40), max(0, 206 - self.foul2 * 40), max(0, 235 - self.foul2 * 40))
                 break
         
@@ -304,19 +304,19 @@ class Game:
         pauseSurf = pauseFont.render('Pause!', True, RED)
         pauseRect = pauseSurf.get_rect()
         pauseRect.midtop = (320, 125)
-        self.playSurface.blit(pauseSurf, pauseRect)
+        self.ps.blit(pauseSurf, pauseRect)
         
         scoreFont = pygame.font.Font(FONT_PATH, 48)
         scoreSurf = scoreFont.render('1P : ' + str(self.score1) + '  v.s  ' + '2P : ' + str(self.score2), True, GREY)
         scoreRect = scoreSurf.get_rect()
         scoreRect.midtop = (320, 225)
-        self.playSurface.blit(scoreSurf, scoreRect)
+        self.ps.blit(scoreSurf, scoreRect)
         
         contFont = pygame.font.Font(FONT_PATH, 28)
         contSurf = contFont.render('[Space]:continue    [Esc]:quit', True, BLUE)
         contRect = contSurf.get_rect()
         contRect.midtop = (320, 375)
-        self.playSurface.blit(contSurf, contRect)
+        self.ps.blit(contSurf, contRect)
         
         pygame.display.flip()
         
