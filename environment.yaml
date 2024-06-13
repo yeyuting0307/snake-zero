@@ -1,0 +1,19 @@
+name: snake-zero
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pip
+  - pip:
+    - torch --pre --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+    - torchvision --pre --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+    - torchaudio --pre --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+    - accelerate
+    - gymnasium
+    - stable-baselines3
+    - numpy
+    - pandas
+    - scikit-learn
+    - matplotlib
+    - pygame
