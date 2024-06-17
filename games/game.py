@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import random
@@ -5,12 +6,18 @@ import pygame
 from pygame.locals import *
 from constants import *
 from utils import showText, gameStart, gameRule, gameOver
+from logger import EpisodeRecorder
 
 class Game:
     def __init__(self, playSurface):
         self.ps = playSurface
         self.fpsClock = pygame.time.Clock()
         self.reset()
+        self.recorder = EpisodeRecorder()
+        self.save_path = os.path.join(
+            os.path.dirname(__file__), os.pardir, 
+            'logs', f'episode_{round(time.time())}.json'
+        )
 
     def reset(self):
         self.snakePosition1 = [100, 100]
@@ -24,7 +31,6 @@ class Game:
         init_x = random.sample(WIDTH_GRID, self.candyNum)
         init_y = random.sample(HEIGHT_GRID, self.candyNum)
         self.candyPosition = [list(z) for z in zip(init_x, init_y)]
-        
         
         self.direction1 = 'right'
         self.direction2 = 'left'
@@ -49,8 +55,12 @@ class Game:
         self.border = False
         self.gameRestrictTime = 42
         self.gameSpeed = 16
+        self.maxSpeed = 60
+        self.minSpeed = 10
         self.pauseTotalTime = 0
         self.running = True
+        self.breakRule = False
+
         
     def run(self):
         holdStart = True
@@ -67,23 +77,34 @@ class Game:
             self.reset()
             self.gameStartTime = pygame.time.get_ticks()
             
-            while self.running:
+            while self.running and not self.breakRule:
+                _state = pygame.surfarray.array3d(self.ps)
+                
+                _action = None
                 for event in pygame.event.get():
                     if event.type == QUIT:
                         pygame.quit()
                         sys.exit()
                     elif event.type == KEYDOWN:
+                        _action = event.key
                         self.handle_keydown(event)
                         
                 self.update_game()
+                self.check_collisions()
+                _reward = (self.score1, self.score2)
+                _truncated = self.breakRule
+
                 self.render_game()
+                _next_state = pygame.surfarray.array3d(self.ps)
                 
                 passTime = (pygame.time.get_ticks() - self.gameStartTime) / 1000 - self.pauseTotalTime
                 if self.gameRestrictTime - passTime <= 0:
                     self.running = False
                     gameOver(self.ps, self.score1, self.score2)
-                    
+                _terminated = not self.running
+                self.recorder.record_state(_state, _action, _reward, _next_state, _terminated, _truncated, None)
                 self.fpsClock.tick(self.gameSpeed)
+            self.recorder.save_episode(self.save_path)
     
     def handle_keydown(self, event):
         if event.key == ord('d'):
@@ -108,10 +129,10 @@ class Game:
             pygame.event.post(pygame.event.Event(QUIT))
         
         if event.key == ord('.') or event.key == ord('>'):
-            self.gameSpeed = min(60, self.gameSpeed + 2)
+            self.gameSpeed = min(self.maxSpeed, self.gameSpeed + 2)
         
         if event.key == ord(',') or event.key == ord('<'):
-            self.gameSpeed = max(10, self.gameSpeed - 2)
+            self.gameSpeed = max(self.minSpeed, self.gameSpeed - 2)
         
         if event.key == K_SPACE:
             self.pause_game()
@@ -173,7 +194,7 @@ class Game:
             self.snakeSegments2.pop()
             self.scoreColor2 = GREY
         
-        self.check_collisions()
+        
         
     def render_game(self):
         self.ps.fill(BLACK)
@@ -210,7 +231,6 @@ class Game:
         showText(self.ps, "Speed : " + str(self.gameSpeed), 20, self.scoreColor1, (340, 440))
         showText(self.ps, "× " * self.foul1, 24, RED, (40, 0))
         showText(self.ps, "× " * self.foul2, 24, RED, (600, 0))
-        
         pygame.display.flip()
 
     def check_collisions(self):
@@ -239,7 +259,7 @@ class Game:
             if self.snakePosition1 == snakeBody:
                 self.foul1 += 1
                 if self.foul1 >= 3:
-                    self.running = gameOver(self.ps, self.score1, self.score2, self.foul1, self.foul2)
+                    self.breakRule = gameOver(self.ps, self.score1, self.score2, self.foul1, self.foul2)
                 self.snakeColor1 = pygame.Color(max(0, 255 - self.foul1 * 40), max(0, 255 - self.foul1 * 40), 0)
                 break
         
@@ -268,7 +288,7 @@ class Game:
             if self.snakePosition2 == snakeBody:
                 self.foul2 += 1
                 if self.foul2 >= 3:
-                    self.running = gameOver(self.ps, self.score1, self.score2, self.foul1, self.foul2)
+                    self.breakRule = gameOver(self.ps, self.score1, self.score2, self.foul1, self.foul2)
                 self.snakeColor2 = pygame.Color(max(0, 135 - self.foul2 * 40), max(0, 206 - self.foul2 * 40), max(0, 235 - self.foul2 * 40))
                 break
         
