@@ -5,7 +5,6 @@ import random
 import pygame
 from pygame.locals import *
 from constants import *
-from utils import showText, gameStart, gameRule, gameOver
 from logger import EpisodeRecorder
 
 class Game:
@@ -14,12 +13,9 @@ class Game:
         self.fpsClock = pygame.time.Clock()
         self.reset()
         self.recorder = EpisodeRecorder()
-        self.save_path = os.path.join(
-            os.path.dirname(__file__), os.pardir, 
-            'logs', f'episode_{round(time.time())}.json'
-        )
-
+        
     def reset(self):
+        self.reset_state()
         self.snakePosition1 = [100, 100]
         self.snakeSegments1 = [[100, 100], [80, 100], [60, 100]]
         
@@ -53,6 +49,7 @@ class Game:
         self.timeColor = GREY
         
         self.border = False
+        self.gameWinScore = 100
         self.gameRestrictTime = 42
         self.gameSpeed = 16
         self.maxSpeed = 60
@@ -61,69 +58,98 @@ class Game:
         self.running = True
         self.breakRule = False
 
-        
+    def reset_state(self):
+        self.if_record = False
+        self._state = None
+        self._action1 = None
+        self._action2 = None
+        self._reward1 = 0
+        self._reward2 = 0
+        self._next_state = None
+        self._terminated = False
+        self._truncated = False
+        self._info = None
+
     def run(self):
         holdStart = True
         while holdStart:
-            holdStart = gameStart(self.ps)
+            holdStart = self.gameStart()
         
         self.ps.fill(BLACK)
         ruleStart = True
         while ruleStart:
-            ruleStart = gameRule(self.ps)
+            ruleStart = self.gameRule()
         
         restart = True
         while restart:
+            self.recorder.reset()
             self.reset()
             self.gameStartTime = pygame.time.get_ticks()
             
             while self.running and not self.breakRule:
-                _state = pygame.surfarray.array3d(self.ps)
-                
-                _action = None
+                self._state = pygame.surfarray.array3d(self.ps)
+                self._action = None
                 for event in pygame.event.get():
                     if event.type == QUIT:
                         pygame.quit()
                         sys.exit()
                     elif event.type == KEYDOWN:
-                        _action = event.key
+                        self.if_record = True
                         self.handle_keydown(event)
                         
                 self.update_game()
                 self.check_collisions()
-                _reward = (self.score1, self.score2)
-                _truncated = self.breakRule
+                self._info = (self.score1, self.score2)
+                self._truncated = self.breakRule
 
                 self.render_game()
-                _next_state = pygame.surfarray.array3d(self.ps)
+                self._next_state = pygame.surfarray.array3d(self.ps)
                 
-                passTime = (pygame.time.get_ticks() - self.gameStartTime) / 1000 - self.pauseTotalTime
-                if self.gameRestrictTime - passTime <= 0:
-                    self.running = False
-                    gameOver(self.ps, self.score1, self.score2)
-                _terminated = not self.running
-                self.recorder.record_state(_state, _action, _reward, _next_state, _terminated, _truncated, None)
+                self.check_win()
+                self.check_time_up()
+                self._terminated = not self.running
+
+                self.check_record()
                 self.fpsClock.tick(self.gameSpeed)
-            self.recorder.save_episode(self.save_path)
-    
+
+    def check_win(self):
+        if self.score1 >= self.gameWinScore or self.score2 >= self.gameWinScore:
+            self.running = False
+            self.gameOver(self.score1, self.score2)
+            
+    def check_record(self):
+        if self.if_record:
+            self.recorder.record_state(
+                self._state, self._action1, self._action2, 
+                self._reward1, self._reward2, self._next_state, 
+                self._terminated, self._truncated, self._info
+            )
+            self.reset_state()
+
+    def check_time_up(self):
+        passTime = (pygame.time.get_ticks() - self.gameStartTime) / 1000 - self.pauseTotalTime
+        if self.gameRestrictTime - passTime <= 0:
+            self.running = False
+            self.gameOver(self.score1, self.score2)
+
     def handle_keydown(self, event):
         if event.key == ord('d'):
-            self.changeDirection1 = 'right'
+            self._action1 = self.changeDirection1 = 'right'
         if event.key == ord('a'):
-            self.changeDirection1 = 'left'
+            self._action1 = self.changeDirection1 = 'left'
         if event.key == ord('w'):
-            self.changeDirection1 = 'up'
+            self._action1 = self.changeDirection1 = 'up'
         if event.key == ord('s'):
-            self.changeDirection1 = 'down'
+            self._action1 = self.changeDirection1 = 'down'
         
         if event.key == K_RIGHT:
-            self.changeDirection2 = 'right'
+            self._action2 = self.changeDirection2 = 'right'
         if event.key == K_LEFT:
-            self.changeDirection2 = 'left'
+            self._action2 = self.changeDirection2 = 'left'
         if event.key == K_UP:
-            self.changeDirection2 = 'up'
+            self._action2 = self.changeDirection2 = 'up'
         if event.key == K_DOWN:
-            self.changeDirection2 = 'down'
+            self._action2 = self.changeDirection2 = 'down'
         
         if event.key == K_ESCAPE:
             pygame.event.post(pygame.event.Event(QUIT))
@@ -178,6 +204,7 @@ class Game:
         if self.snakePosition1 in self.candyPosition:
             self.candySpawned = max(0, self.candySpawned - 1)
             self.score1 += 5
+            self._reward1 = 5
             self.scoreColor1 = GOLD
             self.candyPosition.remove(self.snakePosition1)
         else:
@@ -188,13 +215,12 @@ class Game:
         if self.snakePosition2 in self.candyPosition:
             self.candySpawned = max(0, self.candySpawned - 1)
             self.score2 += 5
+            self._reward2 = 5
             self.scoreColor2 = GOLD
             self.candyPosition.remove(self.snakePosition2)
         else:
             self.snakeSegments2.pop()
             self.scoreColor2 = GREY
-        
-        
         
     def render_game(self):
         self.ps.fill(BLACK)
@@ -226,32 +252,32 @@ class Game:
         timeRect = timeSurf.get_rect()
         timeRect.midtop = (WIDTH / 2, 0)
         self.ps.blit(timeSurf, timeRect)
-        showText(self.ps, "1P  " + str(self.score1).zfill(3), 24, self.scoreColor1, (160, 0))
-        showText(self.ps, "2P  " + str(self.score2).zfill(3), 24, self.scoreColor2, (480, 0))
-        showText(self.ps, "Speed : " + str(self.gameSpeed), 20, self.scoreColor1, (340, 440))
-        showText(self.ps, "× " * self.foul1, 24, RED, (40, 0))
-        showText(self.ps, "× " * self.foul2, 24, RED, (600, 0))
+        self.showText("1P  " + str(self.score1).zfill(3), 24, self.scoreColor1, (160, 0))
+        self.showText("2P  " + str(self.score2).zfill(3), 24, self.scoreColor2, (480, 0))
+        self.showText("Speed : " + str(self.gameSpeed), 20, self.scoreColor1, (340, 440))
+        self.showText("× " * self.foul1, 24, RED, (40, 0))
+        self.showText("× " * self.foul2, 24, RED, (600, 0))
         pygame.display.flip()
 
     def check_collisions(self):
         if self.snakePosition1[0] >= WIDTH:
             if self.border:
-                self.running = gameOver(self.ps, self.score1, self.score2)
+                self.running = self.gameOver( self.score1, self.score2)
             else:
                 self.snakePosition1[0] = 0
         if self.snakePosition1[0] < 0:
             if self.border:
-                self.running = gameOver(self.ps, self.score1, self.score2)
+                self.running = self.gameOver( self.score1, self.score2)
             else:
                 self.snakePosition1[0] = WIDTH - 20
         if self.snakePosition1[1] >= HEIGHT:
             if self.border:
-                self.running = gameOver(self.ps, self.score1, self.score2)
+                self.running = self.gameOver( self.score1, self.score2)
             else:
                 self.snakePosition1[1] = 0
         if self.snakePosition1[1] < 0:
             if self.border:
-                self.running = gameOver(self.ps, self.score1, self.score2)
+                self.running = self.gameOver( self.score1, self.score2)
             else:
                 self.snakePosition1[1] = HEIGHT - 20
         
@@ -259,28 +285,28 @@ class Game:
             if self.snakePosition1 == snakeBody:
                 self.foul1 += 1
                 if self.foul1 >= 3:
-                    self.breakRule = gameOver(self.ps, self.score1, self.score2, self.foul1, self.foul2)
+                    self.breakRule = self.gameOver( self.score1, self.score2, self.foul1, self.foul2)
                 self.snakeColor1 = pygame.Color(max(0, 255 - self.foul1 * 40), max(0, 255 - self.foul1 * 40), 0)
                 break
         
         if self.snakePosition2[0] >= WIDTH:
             if self.border:
-                self.running = gameOver(self.ps, self.score1, self.score2)
+                self.running = self.gameOver( self.score1, self.score2)
             else:
                 self.snakePosition2[0] = 0
         if self.snakePosition2[0] < 0:
             if self.border:
-                self.running = gameOver(self.ps, self.score1, self.score2)
+                self.running = self.gameOver( self.score1, self.score2)
             else:
                 self.snakePosition2[0] = WIDTH - 20
         if self.snakePosition2[1] >= HEIGHT:
             if self.border:
-                self.running = gameOver(self.ps, self.score1, self.score2)
+                self.running = self.gameOver( self.score1, self.score2)
             else:
                 self.snakePosition2[1] = 0
         if self.snakePosition2[1] < 0:
             if self.border:
-                self.running = gameOver(self.ps, self.score1, self.score2)
+                self.running = self.gameOver( self.score1, self.score2)
             else:
                 self.snakePosition2[1] = HEIGHT - 20
         
@@ -288,14 +314,17 @@ class Game:
             if self.snakePosition2 == snakeBody:
                 self.foul2 += 1
                 if self.foul2 >= 3:
-                    self.breakRule = gameOver(self.ps, self.score1, self.score2, self.foul1, self.foul2)
+                    self.breakRule = self.gameOver( self.score1, self.score2, self.foul1, self.foul2)
                 self.snakeColor2 = pygame.Color(max(0, 135 - self.foul2 * 40), max(0, 206 - self.foul2 * 40), max(0, 235 - self.foul2 * 40))
                 break
         
         for snakeBody in self.snakeSegments2[1:]:
             if self.snakePosition1 == snakeBody:
                 self.score1 += 5
+                self._reward1 = 5
                 self.score2 = max(0, self.score2 - 5)
+                if self.score2 > 0:
+                    self._reward2 = -5
                 self.snakeSegments2.pop()
                 self.snakeSegments1.insert(0, list(self.snakePosition1))
                 self.snakeColor2 = RED
@@ -308,7 +337,10 @@ class Game:
         for snakeBody in self.snakeSegments1[1:]:
             if self.snakePosition2 == snakeBody:
                 self.score2 += 5
+                self._reward2 = 5
                 self.score1 = max(0, self.score1 - 5)
+                if self.score1 > 0:
+                    self._reward1 = -5
                 self.snakeSegments1.pop()
                 self.snakeSegments2.insert(0, list(self.snakePosition2))
                 self.snakeColor1 = RED
@@ -354,3 +386,106 @@ class Game:
         
         pauseEndTime = pygame.time.get_ticks()
         self.pauseTotalTime += (pauseEndTime - pauseStartTime) / 1000
+
+    def showText(self, text, FontSize=72, FontColor=BLUE, midtop=(320, 125), Font=FONT_PATH):
+        font = pygame.font.Font(Font, FontSize)
+        surf = font.render(text, True, FontColor)
+        rect = surf.get_rect()
+        rect.midtop = midtop
+        self.ps.blit(surf, rect)
+
+    def gameStart(self):
+        self.showText('Snake Game', FontSize=72, FontColor=TIFFANY, midtop=(320, 125))
+        self.showText('Powered by Mike', FontSize=24, FontColor=ORANGE, midtop=(320, 225))
+        self.showText('[Space]:start    [Esc]:quit.', FontSize=28, FontColor=BLUE, midtop=(320, 325))
+
+        pygame.display.flip()
+        
+        while True:
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == KEYDOWN:
+                    if event.key == K_ESCAPE:
+                        pygame.event.post(pygame.event.Event(QUIT))
+                    if event.key == K_SPACE:
+                        return False
+
+    def gameRule(self):
+        self.showText('【1P】', FontSize=36, FontColor=YELLOW, midtop=(200, 25))
+        self.showText('up : [w]', FontSize=28, FontColor=YELLOW, midtop=(200, 75))
+        self.showText('left : [a]', FontSize=28, FontColor=YELLOW, midtop=(200, 125))
+        self.showText('down : [s]', FontSize=28, FontColor=YELLOW, midtop=(200, 175))
+        self.showText('right : [d]', FontSize=28, FontColor=YELLOW, midtop=(200, 225))
+        
+        self.showText('【2P】', FontSize=36, FontColor=SKYBLUE, midtop=(400, 25))
+        self.showText('up : [↑]', FontSize=28, FontColor=SKYBLUE, midtop=(400, 75))
+        self.showText('left : [←]', FontSize=28, FontColor=SKYBLUE, midtop=(400, 125))
+        self.showText('down : [↓]', FontSize=28, FontColor=SKYBLUE, midtop=(400, 175))
+        self.showText('right : [→]', FontSize=28, FontColor=SKYBLUE, midtop=(400, 225))
+        
+        self.showText("※ Eat red candy or opponent's body to get points.", 
+                FontSize=24, FontColor=RED, midtop=(320, 280))
+        self.showText("※ Don't eat yourself up to three times or you lose.", 
+                FontSize=24, FontColor=RED, midtop=(320, 320))
+        
+        self.showText('[>] : speed up    [<] : speed down', 
+                FontSize=24, FontColor=ORANGE, midtop=(320, 380))
+        
+        self.showText('[Space] : start/pause             [Esc] : quit', 
+                FontSize=24, FontColor=SKYBLUE, midtop=(320, 420))
+        
+        pygame.display.flip()
+        
+        while True:
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == KEYDOWN:
+                    if event.key == K_ESCAPE:
+                        pygame.event.post(pygame.event.Event(QUIT))
+                    if event.key == K_SPACE:
+                        return False
+
+    def gameOver(self, score1, score2, foul1=0, foul2=0):
+        if foul1 >= 3:
+            endSpeech = '2P Wins!'
+            otherSpeech = '1P Break Rule'
+        elif foul2 >= 3:
+            endSpeech = '1P Wins!'
+            otherSpeech = '2P Break Rule'
+        elif score1 > score2:
+            endSpeech = '1P Wins!'
+            otherSpeech = None
+        elif score1 < score2:
+            endSpeech = '2P Wins!'
+            otherSpeech = None
+        else:
+            endSpeech = 'Break Even!'
+            otherSpeech = None
+        
+        self.showText(endSpeech, FontSize=72, FontColor=RED, midtop=(320, 125))
+        self.showText(f'1P : {score1}  v.s  2P : {score2}', FontSize=48, FontColor=LIGHTGREY, midtop=(320, 225))
+        
+        if otherSpeech:
+            self.showText(otherSpeech, FontSize=28, FontColor=RED, midtop=(320, 300))
+        
+        self.showText('[Space]:restart    [Esc]:quit', FontSize=28, FontColor=BLUE, midtop=(320, 375))
+        
+        pygame.display.flip()
+        self.if_record = True
+        self.check_record()
+        self.recorder.save_episode()
+        
+        while True:
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == KEYDOWN:
+                    if event.key == K_ESCAPE:
+                        pygame.event.post(pygame.event.Event(QUIT))
+                    if event.key == K_SPACE:
+                        return False
