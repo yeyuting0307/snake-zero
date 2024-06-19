@@ -5,14 +5,16 @@ import random
 import pygame
 from pygame.locals import *
 from constants import *
-from logger import EpisodeRecorder
+from vcr import EpisodeRecorder
 
 class Game:
-    def __init__(self, playSurface):
+    def __init__(self, playSurface, p1_auto=False, p2_auto=False):
         self.ps = playSurface
         self.fpsClock = pygame.time.Clock()
-        self.reset()
         self.recorder = EpisodeRecorder()
+        self.reset()
+        self.p1_auto = p1_auto
+        self.p2_auto = p2_auto
         
     def reset(self):
         self.reset_state()
@@ -87,6 +89,7 @@ class Game:
             self.gameStartTime = pygame.time.get_ticks()
             
             while self.running and not self.breakRule:
+                self.auto_play(self.p1_auto, self.p2_auto)
                 self._state = pygame.surfarray.array3d(self.ps)
                 self._action = None
                 for event in pygame.event.get():
@@ -118,12 +121,13 @@ class Game:
             self.gameOver(self.score1, self.score2)
             
     def check_record(self):
+        self.recorder.record_buffer(
+            self._state, self._action1, self._action2, 
+            self._reward1, self._reward2, self._next_state, 
+            self._terminated, self._truncated, self._info
+        )
         if self.if_record:
-            self.recorder.record_state(
-                self._state, self._action1, self._action2, 
-                self._reward1, self._reward2, self._next_state, 
-                self._terminated, self._truncated, self._info
-            )
+            self.recorder.record_state()
             self.reset_state()
 
     def check_time_up(self):
@@ -231,8 +235,8 @@ class Game:
             self.candyPosition = [list(z) for z in zip(new_x, new_y)]
             self.candySpawned = self.candyNum
         
-        for cp in self.candyPosition:
-            pygame.draw.rect(self.ps, RED, Rect(cp[0], cp[1], 20, 20))
+        for cp_x, cp_y in self.candyPosition:
+            pygame.draw.rect(self.ps, RED, Rect(cp_x, cp_y, 20, 20))
         
         for position in self.snakeSegments1[1:]:
             pygame.draw.rect(self.ps, self.snakeColor1, Rect(position[0], position[1], 20, 20))
@@ -489,3 +493,29 @@ class Game:
                         pygame.event.post(pygame.event.Event(QUIT))
                     if event.key == K_SPACE:
                         return False
+    def auto_play(self, player1 = False, player2 = False):
+        for cp in self.candyPosition:
+            if player1:
+                if self.snakePosition1[0] > cp[0]:
+                    key_event1 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a')
+                elif self.snakePosition1[1] > cp[1]:
+                    key_event1 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_w, mod=0, unicode='w')
+                elif self.snakePosition1[0] < cp[0]:
+                    key_event1 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_d, mod=0, unicode='d')
+                elif self.snakePosition1[1] < cp[1]:
+                    key_event1 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_s, mod=0, unicode='s')
+                else:
+                    key_event1 =pygame.event.Event(pygame.NOEVENT)
+                pygame.event.post(key_event1)
+            if player2:
+                if self.snakePosition2[0] < cp[0]:
+                    key_event2 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RIGHT, mod=0, unicode='right')
+                elif self.snakePosition2[0] > cp[0]:
+                    key_event2 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_LEFT, mod=0, unicode='left')
+                elif self.snakePosition2[1] < cp[1]:
+                    key_event2 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_DOWN, mod=0, unicode='down')
+                elif self.snakePosition2[1] > cp[1]:
+                    key_event2 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_UP, mod=0, unicode='up')
+                else:
+                    key_event2 =pygame.event.Event(pygame.NOEVENT)
+                pygame.event.post(key_event2)
