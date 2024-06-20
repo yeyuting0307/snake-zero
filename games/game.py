@@ -4,6 +4,7 @@ import time
 import random
 import pygame
 from pygame.locals import *
+import numpy as np
 from constants import *
 from vcr import EpisodeRecorder
 
@@ -62,12 +63,12 @@ class Game:
 
     def reset_state(self):
         self.if_record = False
-        self._state = None
+        self._state = np.zeros((HEIGHT, WIDTH, 3))
         self._action1 = None
         self._action2 = None
         self._reward1 = 0
         self._reward2 = 0
-        self._next_state = None
+        self._next_state = np.zeros((HEIGHT, WIDTH, 3))
         self._terminated = False
         self._truncated = False
         self._info = None
@@ -479,6 +480,8 @@ class Game:
         self.showText('[Space]:restart    [Esc]:quit', FontSize=28, FontColor=BLUE, midtop=(320, 375))
         
         pygame.display.flip()
+        self._next_state = pygame.surfarray.array3d(self.ps)
+
         self.if_record = True
         self.check_record()
         self.recorder.save_episode()
