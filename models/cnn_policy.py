@@ -23,12 +23,11 @@ class CNNPolicy(nn.Module):
             nn.BatchNorm(128),
             nn.ReLU(),
         )
-        self.linear = nn.Linear(1228800, output_channel)
+        self.linear = nn.Linear(38400, output_channel)
        
     def __call__(self, x):
         output = self.cnn(x)
-        output = mx.flatten(output)
+        output = mx.flatten(output).reshape(x.shape[0], -1)
         output = self.linear(output)
         return output
     
-# %%

@@ -23,8 +23,8 @@ def episode_loader(episode_paths, action_map=ACTION_MAP):
     valid_vector = [
         { 
             "state" : episode.state,
-            "action1" : action_map[episode.action1],
-            "reward1"  : episode.reward1,
+            "action" : action_map[episode.action1],
+            "reward"  : episode.reward1,
             "done" : int(episode.terminated or episode.truncated),
             "next_state" : episode.next_state,
         } for episode in tqdm(episodes)
