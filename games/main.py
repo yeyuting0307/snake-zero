@@ -14,8 +14,10 @@ def main():
     pygame.display.set_caption('Snake Game')
     image = pygame.image.load('images/game.ico')
     pygame.display.set_icon(image)
+    p1_auto = True
+    p2_auto = True
 
-    game = Game(playSurface)
+    game = Game(playSurface, p1_auto, p2_auto)
     game.run()
 
 if __name__ == "__main__":

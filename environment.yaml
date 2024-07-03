@@ -17,3 +17,5 @@ dependencies:
     - scikit-learn
     - matplotlib
     - pygame
+    - mlx
+    - mlx-data
