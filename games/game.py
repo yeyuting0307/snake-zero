@@ -7,16 +7,27 @@ from pygame.locals import *
 import numpy as np
 from constants import *
 from vcr import EpisodeRecorder
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
+from RL.train import train_policy
+from RL.inference import select_action
+from models.snake_zero import SnakeRL
 
 class Game:
-    def __init__(self, playSurface, p1_auto=False, p2_auto=False):
+    def __init__(self, playSurface, p1="auto", p2="ai", training=False):
         self.ps = playSurface
         self.fpsClock = pygame.time.Clock()
         self.recorder = EpisodeRecorder()
         self.reset()
-        self.p1_auto = p1_auto
-        self.p2_auto = p2_auto
-        
+        self.p1 = p1
+        self.p2 = p2
+        self.training = training
+        self.policy_net = SnakeRL(3, 5)
+        model_path = os.path.join(os.pardir, "models", "snake_zero.h5")
+        if os.path.exists(model_path):
+            self.policy_net.load_weights(model_path)
+        self.episilon = 0.4
+        self.game_counter = 0
+
     def reset(self):
         self.reset_state()
         self.snakePosition1 = [100, 100]
@@ -90,8 +101,8 @@ class Game:
             self.gameStartTime = pygame.time.get_ticks()
             
             while self.running and not self.breakRule:
-                self.auto_play(self.p1_auto, self.p2_auto)
                 self._state = pygame.surfarray.array3d(self.ps)
+                self.auto_play(self.p1, self.p2)
                 self._action = None
                 for event in pygame.event.get():
                     if event.type == QUIT:
@@ -480,11 +491,22 @@ class Game:
         self.showText('[Space]:restart    [Esc]:quit', FontSize=28, FontColor=BLUE, midtop=(320, 375))
         
         pygame.display.flip()
+        self.game_counter += 1
         self._next_state = pygame.surfarray.array3d(self.ps)
 
         self.if_record = True
         self.check_record()
         self.recorder.save_episode()
+        
+        if self.training:
+            try:
+                print("episilon", self.episilon)
+                self.episilon *= 0.95
+                self.policy_net = train_policy(self.policy_net)
+            except Exception as e:
+                print(e)
+            finally:
+                return False
         
         while True:
             for event in pygame.event.get():
@@ -496,7 +518,12 @@ class Game:
                         pygame.event.post(pygame.event.Event(QUIT))
                     if event.key == K_SPACE:
                         return False
-    def auto_play(self, player1 = False, player2 = False):
+                    
+    def auto_play(self, p1, p2):
+        self.chase_candy(p1 == "auto", p2 == "auto")
+        self.ai_play(p1 == "ai", p2 == "ai")
+
+    def chase_candy(self, player1 = False, player2 = False):
         for cp in self.candyPosition:
             if player1:
                 if self.snakePosition1[0] > cp[0]:
@@ -522,3 +549,37 @@ class Game:
                 else:
                     key_event2 =pygame.event.Event(pygame.NOEVENT)
                 pygame.event.post(key_event2)
+
+    def ai_play(self, player1 = False, player2 = False):
+        if random.random() < self.episilon:
+            ai_move = random.choice([None, "up", "down", "left", "right"])
+        else:
+            ai_move = select_action(self.policy_net, self._state)
+        if player1:
+            if ai_move == "up":
+                key_event1 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_w, mod=0, unicode='w')
+            elif ai_move == "down":
+                key_event1 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_s, mod=0, unicode='s')
+            elif ai_move == "left":
+                key_event1 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_a, mod=0, unicode='a')
+            elif ai_move == "right":
+                key_event1 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_d, mod=0, unicode='d')
+            else:
+                key_event1 =pygame.event.Event(pygame.NOEVENT)
+            pygame.event.post(key_event1)
+
+        if player2:
+            if ai_move == "up":
+                key_event2 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_UP, mod=0, unicode='up')
+            elif ai_move == "down":
+                key_event2 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_DOWN, mod=0, unicode='down')
+            elif ai_move == "left":
+                key_event2 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_LEFT, mod=0, unicode='left')
+            elif ai_move == "right":
+                key_event2 = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RIGHT, mod=0, unicode='right')
+            else:
+                key_event2 =pygame.event.Event(pygame.NOEVENT)
+            pygame.event.post(key_event2)
+
+
+        
